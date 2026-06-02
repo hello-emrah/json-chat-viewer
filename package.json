@@ -1,0 +1,94 @@
+{
+  "name": "claude-session-viewer",
+  "displayName": "Claude Session Viewer",
+  "description": "Read Claude Code .jsonl chat session logs as a clean, navigable transcript.",
+  "version": "0.1.0",
+  "publisher": "emrah",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "claude",
+    "claude code",
+    "jsonl",
+    "transcript",
+    "session",
+    "log viewer"
+  ],
+  "main": "./out/extension.js",
+  "icon": "media/icon.png",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "claudeSessionViewer.transcript",
+        "displayName": "Claude Session Transcript",
+        "selector": [
+          {
+            "filenamePattern": "*.jsonl"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "claudeSessionViewer.open",
+        "title": "Open as Readable Transcript",
+        "category": "Claude Session",
+        "icon": "$(book)"
+      },
+      {
+        "command": "claudeSessionViewer.openText",
+        "title": "Reopen as Raw JSONL",
+        "category": "Claude Session",
+        "icon": "$(json)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "claudeSessionViewer.open",
+          "when": "resourceExtname == .jsonl && activeCustomEditorId != claudeSessionViewer.transcript",
+          "group": "navigation@1"
+        },
+        {
+          "command": "claudeSessionViewer.openText",
+          "when": "activeCustomEditorId == claudeSessionViewer.transcript",
+          "group": "navigation@1"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "claudeSessionViewer.open",
+          "when": "resourceExtname == .jsonl",
+          "group": "navigation@9"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "claudeSessionViewer.open",
+          "when": "resourceExtname == .jsonl"
+        },
+        {
+          "command": "claudeSessionViewer.openText",
+          "when": "resourceExtname == .jsonl"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}
