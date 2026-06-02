@@ -3,7 +3,9 @@
   const vscode = acquireVsCodeApi();
   const app = document.getElementById("app");
 
+  let bundle = null;
   let transcript = null;
+  let selectedIdx = 0;
   let fileName = "";
   const filters = { thinking: true, tools: true, results: true, system: true, images: true };
 
@@ -240,10 +242,16 @@
   }
 
   // ---------- event rendering ----------
+  function assistantName() {
+    const f = bundle && bundle.format;
+    if (f === "chatgpt-export") return "ChatGPT";
+    if (f === "claude-code" || f === "claude-export") return "Claude";
+    return "Assistant";
+  }
   function roleLabel(ev) {
     switch (ev.kind) {
       case "user": return ev.flavor === "command" ? "command" : ev.flavor === "reminder" ? "system reminder" : ev.flavor === "meta" ? "context" : "You";
-      case "assistant": return "Claude";
+      case "assistant": return assistantName();
       case "thinking": return "Thinking";
       case "tool_call": return "Tool";
       case "tool_result": return ev.ok ? "Result" : "Error";
@@ -348,8 +356,9 @@
   // ---------- header + toolbar ----------
   function renderHeader(meta) {
     const h = el("div", "header");
-    const title = meta.title || "Claude Code Session";
+    const title = meta.title || (bundle && bundle.formatLabel) || "Conversation";
     let metaBits = [];
+    if (bundle && bundle.formatLabel) metaBits.push(`<span class="fmt-badge">${esc(bundle.formatLabel)}</span>`);
     if (meta.cwd) metaBits.push(`📁 <code>${esc(meta.cwd)}</code>`);
     if (meta.gitBranch) metaBits.push(`⎇ ${esc(meta.gitBranch)}`);
     if (meta.models.length) metaBits.push(`✦ ${esc(meta.models.join(", "))}`);
@@ -377,11 +386,31 @@
     if (c.errors) pills.push(`<span class="pill" style="background:rgba(199,92,92,0.25)"><b>${c.errors}</b> errors</span>`);
     if (meta.parseErrors) pills.push(`<span class="pill" title="lines that failed to parse">${meta.parseErrors} bad lines</span>`);
 
+    // Conversation picker when a file holds more than one (e.g. an export).
+    let picker = "";
+    if (bundle && bundle.conversations.length > 1) {
+      const opts = bundle.conversations.map((c, i) => {
+        const d = c.meta.lastTimestamp ? " — " + fmtDate(c.meta.lastTimestamp) : "";
+        const n = (c.meta.title || `Conversation ${i + 1}`);
+        return `<option value="${i}"${i === selectedIdx ? " selected" : ""}>${esc(n)}${esc(d)}</option>`;
+      }).join("");
+      picker = `<div class="convo-picker"><span>${bundle.conversations.length} conversations</span>` +
+        `<select id="convo-select">${opts}</select></div>`;
+    }
+
     h.innerHTML =
       `<h1>${esc(title)}</h1>` +
       `<div class="filename">${esc(fileName)}</div>` +
+      picker +
       `<div class="meta-line">${metaBits.join('<span style="opacity:.4">·</span>')}</div>` +
       `<div class="pills">${pills.join("")}</div>`;
+
+    const sel = h.querySelector("#convo-select");
+    if (sel) sel.addEventListener("change", (e) => {
+      selectedIdx = parseInt(e.target.value, 10) || 0;
+      render();
+      window.scrollTo(0, 0);
+    });
     return h;
   }
 
@@ -472,7 +501,9 @@
   // ---------- main render ----------
   function render() {
     app.innerHTML = "";
-    if (!transcript) { app.appendChild(el("div", "loading", "Parsing session…")); return; }
+    if (!bundle || !bundle.conversations.length) { app.appendChild(el("div", "loading", "Parsing…")); return; }
+    if (selectedIdx >= bundle.conversations.length) selectedIdx = 0;
+    transcript = bundle.conversations[selectedIdx];
     app.appendChild(renderHeader(transcript.meta));
     app.appendChild(renderToolbar());
 
@@ -508,9 +539,10 @@
 
   window.addEventListener("message", (e) => {
     const msg = e.data;
-    if (msg.type === "transcript") {
-      transcript = msg.data;
+    if (msg.type === "bundle") {
+      bundle = msg.data;
       fileName = msg.fileName || "";
+      selectedIdx = 0;
       render();
     } else if (msg.type === "error") {
       app.innerHTML = `<div class="empty-note">Failed to parse: ${esc(msg.message)}</div>`;

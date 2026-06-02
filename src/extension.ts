@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
-import { parseTranscript } from "./parser";
+import { parseAny } from "./parsers";
 
-const VIEW_TYPE = "claudeSessionViewer.transcript";
+const VIEW_TYPE = "jsonChatViewer.transcript";
 
 export function activate(context: vscode.ExtensionContext) {
   const provider = new TranscriptEditorProvider(context);
@@ -12,21 +12,19 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  // Open the active (or a chosen) .jsonl file in the readable transcript editor.
   context.subscriptions.push(
-    vscode.commands.registerCommand("claudeSessionViewer.open", async (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand("jsonChatViewer.open", async (uri?: vscode.Uri) => {
       const target = uri ?? vscode.window.activeTextEditor?.document.uri;
       if (!target) {
-        vscode.window.showInformationMessage("Open a .jsonl session file first, or run this from the file explorer.");
+        vscode.window.showInformationMessage("Open a chat log (.json / .jsonl) first, or run this from the file explorer.");
         return;
       }
       await vscode.commands.executeCommand("vscode.openWith", target, VIEW_TYPE);
     })
   );
 
-  // Reopen the current transcript as raw JSONL text.
   context.subscriptions.push(
-    vscode.commands.registerCommand("claudeSessionViewer.openText", async (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand("jsonChatViewer.openText", async (uri?: vscode.Uri) => {
       const target = uri ?? provider.activeUri;
       if (!target) return;
       await vscode.commands.executeCommand("vscode.openWith", target, "default");
@@ -55,22 +53,19 @@ class TranscriptEditorProvider implements vscode.CustomTextEditorProvider {
     webview.html = this.getHtml(webview);
 
     const post = () => {
-      let payload;
       try {
-        payload = parseTranscript(document.getText());
+        const bundle = parseAny(document.getText(), document.uri.fsPath);
+        webview.postMessage({ type: "bundle", data: bundle, fileName: baseName(document.uri) });
       } catch (err) {
         webview.postMessage({ type: "error", message: String(err) });
-        return;
       }
-      webview.postMessage({ type: "transcript", data: payload, fileName: baseName(document.uri) });
     };
 
-    // Re-render when the underlying file changes (live sessions append to disk).
     let timer: NodeJS.Timeout | undefined;
     const changeSub = vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.document.uri.toString() !== document.uri.toString()) return;
       if (timer) clearTimeout(timer);
-      timer = setTimeout(post, 150);
+      timer = setTimeout(post, 200);
     });
 
     const focusSub = webviewPanel.onDidChangeViewState((e) => {
@@ -81,8 +76,7 @@ class TranscriptEditorProvider implements vscode.CustomTextEditorProvider {
       if (msg?.type === "ready") {
         post();
       } else if (msg?.type === "openExternal" && typeof msg.url === "string") {
-        const ok = /^(https?:\/\/|mailto:)/i.test(msg.url);
-        if (ok) vscode.env.openExternal(vscode.Uri.parse(msg.url));
+        if (/^(https?:\/\/|mailto:)/i.test(msg.url)) vscode.env.openExternal(vscode.Uri.parse(msg.url));
       } else if (msg?.type === "openFile" && typeof msg.path === "string") {
         try {
           const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(msg.path));
@@ -103,12 +97,8 @@ class TranscriptEditorProvider implements vscode.CustomTextEditorProvider {
 
   private getHtml(webview: vscode.Webview): string {
     const nonce = makeNonce();
-    const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.context.extensionUri, "media", "style.css")
-    );
-    const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.context.extensionUri, "media", "main.js")
-    );
+    const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, "media", "style.css"));
+    const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, "media", "main.js"));
     const csp = [
       `default-src 'none'`,
       `img-src ${webview.cspSource} https: data:`,
@@ -124,12 +114,10 @@ class TranscriptEditorProvider implements vscode.CustomTextEditorProvider {
   <meta http-equiv="Content-Security-Policy" content="${csp}" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link href="${styleUri}" rel="stylesheet" />
-  <title>Claude Session</title>
+  <title>Chat Transcript</title>
 </head>
 <body>
-  <div id="app">
-    <div id="loading" class="loading">Parsing session…</div>
-  </div>
+  <div id="app"><div id="loading" class="loading">Parsing…</div></div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
