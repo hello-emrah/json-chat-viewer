@@ -2,7 +2,7 @@
   "name": "json-chat-viewer",
   "displayName": "JSON Chat Viewer",
   "description": "Read LLM chat logs as a clean transcript: Claude Code sessions, ChatGPT and Claude.ai exports, and raw OpenAI / Anthropic API logs.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "publisher": "emrah",
   "license": "MIT",
   "repository": {
