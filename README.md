@@ -43,22 +43,30 @@ The custom editor is registered at `option` priority, so it never hijacks `.json
 
 ## Install
 
-### Run from source (development)
+### From a release (easiest)
+
+1. Download the latest `json-chat-viewer-<version>.vsix` from the [Releases page](https://github.com/hello-emrah/json-chat-viewer/releases).
+2. In VS Code: open the Extensions view, click the `…` menu (top-right), choose **Install from VSIX…**, and pick the file.
+3. Reload the window if prompted.
+
+If the `code` CLI is on your PATH, this is the one-liner equivalent:
 
 ```bash
-npm install
-npm run compile
-```
-
-Press `F5` in VS Code to launch an Extension Development Host with the extension loaded, then open a chat log.
-
-### Package and install locally
-
-```bash
-npm install
-npx @vscode/vsce package
 code --install-extension json-chat-viewer-0.2.0.vsix
 ```
+
+(Not on your PATH? In VS Code run **Shell Command: Install 'code' command in PATH** from the Command Palette first, or just use the Install from VSIX menu above.)
+
+### Build from source
+
+```bash
+git clone https://github.com/hello-emrah/json-chat-viewer.git
+cd json-chat-viewer
+npm install
+npx @vscode/vsce package          # produces json-chat-viewer-<version>.vsix
+```
+
+Then install the generated `.vsix` as above. While developing, press `F5` in VS Code to run it in an Extension Development Host instead.
 
 ## How it works
 

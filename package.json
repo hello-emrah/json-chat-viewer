@@ -5,6 +5,14 @@
   "version": "0.2.0",
   "publisher": "emrah",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hello-emrah/json-chat-viewer.git"
+  },
+  "homepage": "https://github.com/hello-emrah/json-chat-viewer#readme",
+  "bugs": {
+    "url": "https://github.com/hello-emrah/json-chat-viewer/issues"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
