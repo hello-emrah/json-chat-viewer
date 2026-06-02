@@ -34,6 +34,13 @@
   ],
   "main": "./out/extension.js",
   "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#ffffff",
+    "theme": "light"
+  },
+  "sponsor": {
+    "url": "https://buymeacoffee.com/hello_emrah"
+  },
   "contributes": {
     "customEditors": [
       {

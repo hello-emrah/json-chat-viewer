@@ -1,9 +1,15 @@
 name: Release
 
-# Publish a .vsix to a GitHub Release whenever a version tag is pushed:
+# Publish on every version tag:
 #   npm version patch   # bumps package.json + creates the tag
 #   git push --follow-tags
-# (or tag manually: git tag v0.2.1 && git push origin v0.2.1)
+#
+# Always: builds the .vsix and attaches it to a GitHub Release.
+# If the matching repo secret is set, also publishes to:
+#   - VS Code Marketplace   (secret: VSCE_PAT)   -> reaches VS Code
+#   - Open VSX              (secret: OVSX_PAT)   -> reaches Cursor / Windsurf / VSCodium
+# Until those secrets exist, the marketplace steps are skipped, so the
+# GitHub release still works on its own.
 
 on:
   push:
@@ -16,6 +22,9 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,8 +32,14 @@ jobs:
           node-version: 20
       - run: npm ci
       - run: npx @vscode/vsce package
-      - name: Publish release with the .vsix attached
+      - name: Publish GitHub release (.vsix attached)
         uses: softprops/action-gh-release@v2
         with:
           files: "*.vsix"
           generate_release_notes: true
+      - name: Publish to VS Code Marketplace
+        if: ${{ env.VSCE_PAT != '' }}
+        run: npx @vscode/vsce publish --packagePath *.vsix -p "$VSCE_PAT"
+      - name: Publish to Open VSX
+        if: ${{ env.OVSX_PAT != '' }}
+        run: npx ovsx publish *.vsix -p "$OVSX_PAT"
