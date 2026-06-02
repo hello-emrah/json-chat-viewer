@@ -1,0 +1,30 @@
+name: Release
+
+# Publish a .vsix to a GitHub Release whenever a version tag is pushed:
+#   npm version patch   # bumps package.json + creates the tag
+#   git push --follow-tags
+# (or tag manually: git tag v0.2.1 && git push origin v0.2.1)
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npx @vscode/vsce package
+      - name: Publish release with the .vsix attached
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.vsix"
+          generate_release_notes: true
