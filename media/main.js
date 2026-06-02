@@ -462,11 +462,24 @@
 
     // Actions
     const right = el("div", "right");
-    const expand = el("button", "btn"); expand.textContent = "Expand all";
-    expand.addEventListener("click", () => setAllDetails(true));
-    const collapse = el("button", "btn"); collapse.textContent = "Collapse all";
-    collapse.addEventListener("click", () => setAllDetails(false));
-    right.appendChild(expand); right.appendChild(collapse);
+    const mkBtn = (html, title, fn) => {
+      const b = el("button", "btn");
+      b.innerHTML = html;
+      b.title = title;
+      b.addEventListener("click", fn);
+      return b;
+    };
+    // Navigation: jump to top / bottom of the transcript
+    right.appendChild(mkBtn(`<span class="gi">↑</span> Top`, "Jump to the start of the transcript",
+      () => window.scrollTo({ top: 0, behavior: "smooth" })));
+    right.appendChild(mkBtn(`<span class="gi">↓</span> End`, "Jump to the end of the transcript",
+      () => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })));
+    right.appendChild(el("span", "vsep"));
+    // Expand / collapse the collapsible blocks (reasoning, tool input, long output)
+    right.appendChild(mkBtn(`<span class="gi">▾</span> Expand all`,
+      "Open every collapsible block — reasoning, tool input and long output", () => setAllDetails(true)));
+    right.appendChild(mkBtn(`<span class="gi">▸</span> Collapse all`,
+      "Collapse every block back to a one-line summary", () => setAllDetails(false)));
 
     bar.appendChild(search);
     bar.appendChild(filterWrap);
@@ -525,8 +538,10 @@
     if (!bundle || !bundle.conversations.length) { app.appendChild(el("div", "loading", "Parsing…")); return; }
     if (selectedIdx >= bundle.conversations.length) selectedIdx = 0;
     transcript = bundle.conversations[selectedIdx];
-    app.appendChild(renderHeader(transcript.meta));
-    app.appendChild(renderToolbar());
+    const top = el("div", "topbar");
+    top.appendChild(renderHeader(transcript.meta));
+    top.appendChild(renderToolbar());
+    app.appendChild(top);
 
     const list = el("div", "events");
     let lastDate = "";
