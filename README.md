@@ -1,6 +1,12 @@
 # JSON Chat Viewer
 
+[![Latest release](https://img.shields.io/github/v/release/hello-emrah/json-chat-viewer?label=download)](https://github.com/hello-emrah/json-chat-viewer/releases/latest)
+[![Build](https://github.com/hello-emrah/json-chat-viewer/actions/workflows/ci.yml/badge.svg)](https://github.com/hello-emrah/json-chat-viewer/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 A VS Code extension that turns raw LLM chat logs into a clean, readable transcript. One renderer, many formats: Claude Code sessions, ChatGPT and Claude.ai data exports, and raw OpenAI / Anthropic API logs all open as a proper conversation instead of a wall of JSON.
+
+> **Install in 30 seconds:** grab the latest `.vsix` from the **[Releases page](https://github.com/hello-emrah/json-chat-viewer/releases/latest)**, then in VS Code: Extensions view → `…` menu → **Install from VSIX…**. Full steps [below](#install).
 
 ## Supported formats
 
