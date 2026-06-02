@@ -375,16 +375,16 @@
       else if (ev.kind === "tool_result") ec.images += ev.images.length;
     }
     const c = meta.counts, tk = meta.tokens;
-    const pills = [];
-    pills.push(`<span class="pill"><b>${ec.prompts}</b> prompts</span>`);
-    pills.push(`<span class="pill"><b>${ec.replies}</b> replies</span>`);
-    pills.push(`<span class="pill"><b>${ec.tools}</b> tool calls</span>`);
-    if (ec.images) pills.push(`<span class="pill"><b>${ec.images}</b> images</span>`);
-    if (meta.durationMs) pills.push(`<span class="pill">⏱ ${fmtDuration(meta.durationMs)}</span>`);
+    const stats = [];
+    stats.push(`<span class="stat"><b>${ec.prompts}</b> prompts</span>`);
+    stats.push(`<span class="stat"><b>${ec.replies}</b> replies</span>`);
+    stats.push(`<span class="stat"><b>${ec.tools}</b> tool calls</span>`);
+    if (ec.images) stats.push(`<span class="stat"><b>${ec.images}</b> images</span>`);
+    if (meta.durationMs) stats.push(`<span class="stat">⏱ <b>${fmtDuration(meta.durationMs)}</b></span>`);
     const totalTok = tk.input + tk.output + tk.cacheRead + tk.cacheCreate;
-    if (totalTok) pills.push(`<span class="pill" title="in ${tk.input} · out ${tk.output} · cache read ${tk.cacheRead} · cache write ${tk.cacheCreate}">≈ ${fmtNum(totalTok)} tokens</span>`);
-    if (c.errors) pills.push(`<span class="pill" style="background:rgba(199,92,92,0.25)"><b>${c.errors}</b> errors</span>`);
-    if (meta.parseErrors) pills.push(`<span class="pill" title="lines that failed to parse">${meta.parseErrors} bad lines</span>`);
+    if (totalTok) stats.push(`<span class="stat" title="in ${tk.input} · out ${tk.output} · cache read ${tk.cacheRead} · cache write ${tk.cacheCreate}">≈ <b>${fmtNum(totalTok)}</b> tokens</span>`);
+    if (c.errors) stats.push(`<span class="stat error"><b>${c.errors}</b> errors</span>`);
+    if (meta.parseErrors) stats.push(`<span class="stat" title="lines that failed to parse"><b>${meta.parseErrors}</b> bad lines</span>`);
 
     // Conversation picker when a file holds more than one (e.g. an export).
     let picker = "";
@@ -403,7 +403,7 @@
       `<div class="filename">${esc(fileName)}</div>` +
       picker +
       `<div class="meta-line">${metaBits.join('<span style="opacity:.4">·</span>')}</div>` +
-      `<div class="pills">${pills.join("")}</div>`;
+      `<div class="stats">${stats.join("")}</div>`;
 
     const sel = h.querySelector("#convo-select");
     if (sel) sel.addEventListener("change", (e) => {
@@ -421,34 +421,55 @@
     search.placeholder = "Search transcript…";
     search.addEventListener("input", () => applySearch(search.value));
 
+    // Filter dropdown (replaces the old inline toggles)
     const defs = [
-      ["thinking", "Thinking"],
-      ["tools", "Tool calls"],
-      ["results", "Results"],
-      ["images", "Images"],
-      ["system", "System"],
+      ["thinking", "Thinking", "var(--accent-thinking)"],
+      ["tools", "Tool calls", "var(--accent-tool)"],
+      ["results", "Tool results", "var(--accent-result)"],
+      ["images", "Images", "var(--accent-user)"],
+      ["system", "System & meta", "var(--accent-system)"],
     ];
-    const toggles = defs.map(([key, label]) => {
-      const t = el("div", "toggle");
-      t.textContent = label;
-      t.dataset.key = key;
-      t.addEventListener("click", () => {
-        filters[key] = !filters[key];
-        t.classList.toggle("off", !filters[key]);
+    const filterWrap = el("div", "filter");
+    const btn = el("button", "filter-btn");
+    const refreshLabel = () => {
+      const on = defs.filter(([k]) => filters[k]).length;
+      const count = on < defs.length ? `<span class="filter-count">${on}/${defs.length}</span>` : "";
+      btn.innerHTML = `Filter ${count}<span class="caret">▾</span>`;
+    };
+    const menu = el("div", "filter-menu");
+    menu.innerHTML = `<div class="menu-head">Show in transcript</div>`;
+    defs.forEach(([key, label, color]) => {
+      const item = el("label", "filter-item");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = filters[key];
+      cb.addEventListener("change", () => {
+        filters[key] = cb.checked;
+        refreshLabel();
         applyFilters();
       });
-      return t;
+      item.appendChild(cb);
+      item.appendChild(document.createTextNode(label));
+      const sw = el("span", "swatch");
+      sw.style.background = color;
+      item.appendChild(sw);
+      menu.appendChild(item);
     });
+    btn.addEventListener("click", (e) => { e.stopPropagation(); filterWrap.classList.toggle("open"); });
+    filterWrap.appendChild(btn);
+    filterWrap.appendChild(menu);
+    refreshLabel();
 
+    // Actions
     const right = el("div", "right");
-    const expand = el("div", "toggle"); expand.textContent = "Expand all";
+    const expand = el("button", "btn"); expand.textContent = "Expand all";
     expand.addEventListener("click", () => setAllDetails(true));
-    const collapse = el("div", "toggle"); collapse.textContent = "Collapse all";
+    const collapse = el("button", "btn"); collapse.textContent = "Collapse all";
     collapse.addEventListener("click", () => setAllDetails(false));
     right.appendChild(expand); right.appendChild(collapse);
 
     bar.appendChild(search);
-    toggles.forEach((t) => bar.appendChild(t));
+    bar.appendChild(filterWrap);
     bar.appendChild(right);
     const note = el("div", "count-note");
     note.id = "count-note";
@@ -531,10 +552,21 @@
 
   // ---------- events ----------
   document.addEventListener("click", (e) => {
+    // close the filter dropdown when clicking outside it
+    const openFilter = document.querySelector(".filter.open");
+    if (openFilter && !openFilter.contains(e.target)) openFilter.classList.remove("open");
+
     const a = e.target.closest("a[data-href]");
     if (a) { e.preventDefault(); vscode.postMessage({ type: "openExternal", url: a.dataset.href }); return; }
     const p = e.target.closest(".path[data-path]");
     if (p) { e.preventDefault(); vscode.postMessage({ type: "openFile", path: p.dataset.path }); }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const f = document.querySelector(".filter.open");
+      if (f) f.classList.remove("open");
+    }
   });
 
   window.addEventListener("message", (e) => {
