@@ -37,6 +37,28 @@ body {
   font-weight: 600;
 }
 .header .filename { font-size: 0.85em; opacity: 0.55; font-family: var(--vscode-editor-font-family); word-break: break-all; }
+.fmt-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 99px;
+  font-size: 0.95em;
+  background: color-mix(in srgb, var(--accent-assistant) 22%, transparent);
+  color: var(--vscode-foreground);
+  font-weight: 600;
+}
+.convo-picker { margin-top: 10px; display: flex; align-items: center; gap: 8px; font-size: 0.82em; opacity: 0.85; }
+.convo-picker select {
+  flex: 1 1 auto;
+  max-width: 520px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4));
+  font-family: inherit;
+  font-size: 1em;
+}
+.convo-picker select:focus { outline: 1px solid var(--vscode-focusBorder); }
 .meta-line { margin-top: 8px; font-size: 0.82em; opacity: 0.75; display: flex; flex-wrap: wrap; gap: 6px 14px; }
 .meta-line code { background: var(--vscode-textCodeBlock-background); padding: 1px 6px; border-radius: 4px; font-size: 0.95em; }
 .pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }

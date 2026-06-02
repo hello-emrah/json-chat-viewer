@@ -1,8 +1,8 @@
 {
-  "name": "claude-session-viewer",
-  "displayName": "Claude Session Viewer",
-  "description": "Read Claude Code .jsonl chat session logs as a clean, navigable transcript.",
-  "version": "0.1.0",
+  "name": "json-chat-viewer",
+  "displayName": "JSON Chat Viewer",
+  "description": "Read LLM chat logs as a clean transcript: Claude Code sessions, ChatGPT and Claude.ai exports, and raw OpenAI / Anthropic API logs.",
+  "version": "0.2.0",
   "publisher": "emrah",
   "license": "MIT",
   "engines": {
@@ -15,68 +15,71 @@
   "keywords": [
     "claude",
     "claude code",
-    "jsonl",
+    "chatgpt",
+    "openai",
+    "anthropic",
+    "llm",
     "transcript",
-    "session",
-    "log viewer"
+    "conversations.json",
+    "jsonl",
+    "chat log viewer"
   ],
   "main": "./out/extension.js",
   "icon": "media/icon.png",
   "contributes": {
     "customEditors": [
       {
-        "viewType": "claudeSessionViewer.transcript",
-        "displayName": "Claude Session Transcript",
+        "viewType": "jsonChatViewer.transcript",
+        "displayName": "Chat Transcript",
         "selector": [
-          {
-            "filenamePattern": "*.jsonl"
-          }
+          { "filenamePattern": "*.jsonl" },
+          { "filenamePattern": "*.json" }
         ],
         "priority": "option"
       }
     ],
     "commands": [
       {
-        "command": "claudeSessionViewer.open",
+        "command": "jsonChatViewer.open",
         "title": "Open as Readable Transcript",
-        "category": "Claude Session",
-        "icon": "$(book)"
+        "category": "Chat Viewer",
+        "icon": "$(comment-discussion)"
       },
       {
-        "command": "claudeSessionViewer.openText",
-        "title": "Reopen as Raw JSONL",
-        "category": "Claude Session",
+        "command": "jsonChatViewer.openText",
+        "title": "Reopen as Raw JSON",
+        "category": "Chat Viewer",
         "icon": "$(json)"
       }
     ],
     "menus": {
       "editor/title": [
         {
-          "command": "claudeSessionViewer.open",
-          "when": "resourceExtname == .jsonl && activeCustomEditorId != claudeSessionViewer.transcript",
+          "command": "jsonChatViewer.open",
+          "when": "resourceExtname =~ /\\.jsonl?$/ && activeCustomEditorId != jsonChatViewer.transcript",
           "group": "navigation@1"
         },
         {
-          "command": "claudeSessionViewer.openText",
-          "when": "activeCustomEditorId == claudeSessionViewer.transcript",
+          "command": "jsonChatViewer.openText",
+          "when": "activeCustomEditorId == jsonChatViewer.transcript",
           "group": "navigation@1"
         }
       ],
       "explorer/context": [
         {
-          "command": "claudeSessionViewer.open",
-          "when": "resourceExtname == .jsonl",
+          "command": "jsonChatViewer.open",
+          "when": "resourceExtname =~ /\\.jsonl?$/",
           "group": "navigation@9"
         }
       ],
       "commandPalette": [
         {
-          "command": "claudeSessionViewer.open",
-          "when": "resourceExtname == .jsonl"
+          "command": "jsonChatViewer.open",
+          "when": "resourceExtname =~ /\\.jsonl?$/"
         },
         {
-          "command": "claudeSessionViewer.openText",
-          "when": "resourceExtname == .jsonl"
+          "command": "jsonChatViewer.openText",
+          "when": "resourceExtname =~ /\\.jsonl?$/"
         }
       ]
     }

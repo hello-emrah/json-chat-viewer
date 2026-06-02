@@ -1,32 +1,45 @@
-# Claude Session Viewer
+# JSON Chat Viewer
 
-A VS Code extension that turns Claude Code `.jsonl` session logs into a clean, readable transcript.
+A VS Code extension that turns raw LLM chat logs into a clean, readable transcript. One renderer, many formats: Claude Code sessions, ChatGPT and Claude.ai data exports, and raw OpenAI / Anthropic API logs all open as a proper conversation instead of a wall of JSON.
 
-Claude Code stores every session as a JSON Lines file under `~/.claude/projects/<project>/<session-id>.jsonl`. Opened as raw text these are an unreadable wall of nested JSON. This extension renders them as a proper conversation: prompts, replies, reasoning, tool calls, results and images, all laid out and navigable.
+## Supported formats
+
+The extension sniffs the file and picks the right parser automatically.
+
+| Source | What it is | Notes |
+|---|---|---|
+| **Claude Code** | `~/.claude/projects/<project>/<id>.jsonl` | Full fidelity: thinking, tool calls, results, images, model, branch, tokens |
+| **ChatGPT export** | `conversations.json` from a ChatGPT data export | Walks the message tree to the active branch; one file holds many chats |
+| **Claude.ai export** | `conversations.json` from a Claude data export | Text, thinking, tool use/results, attachments |
+| **OpenAI API log** | `{ "messages": [...] }` (Chat Completions) or a bare array | `tool_calls`, `function_call`, `role: "tool"`, multimodal content |
+| **Anthropic API log** | `{ "messages": [...] }` with content blocks | `tool_use`, `tool_result`, `thinking`, `image` |
+| **Fine-tune JSONL** | one `{ "messages": [...] }` per line | each line is a separate conversation |
+
+Files that hold more than one conversation (the exports) get a dropdown to switch between them.
 
 ## Features
 
-- **Conversation layout.** Each turn becomes a colour-accented card: your prompts, Claude's replies (rendered as Markdown), thinking, tool calls, and tool results.
-- **Tool-aware rendering.** `Bash` shows the command as a shell block, `Edit` shows a red/green diff, `Read`/`Write`/`Glob`/`Grep` show the file path and arguments, `TodoWrite` shows the checklist, MCP tools show tidy key/value input. Everything else falls back to formatted JSON.
+- **Conversation layout.** Each turn becomes a colour-accented card: prompts, replies (rendered as Markdown), thinking, tool calls, and results. The assistant is labelled per source (Claude / ChatGPT / Assistant).
+- **Tool-aware rendering.** `Bash` shows the command as a shell block, `Edit` shows a red/green diff, `Read`/`Write`/`Glob`/`Grep` show the file path and arguments, `TodoWrite` shows the checklist, MCP and function tools show tidy key/value input. Everything else falls back to formatted JSON.
 - **Inline images.** Screenshots and pasted images render directly in the transcript.
-- **Session header.** Title, working directory, git branch, model, version, duration, message counts and approximate token usage at a glance.
-- **Filter and search.** Toggle thinking, tool calls, results, images, and system noise on or off. Live full-text search with a match count.
+- **Session header.** Title, source format, working directory, git branch, model, duration, message counts and approximate token usage at a glance.
+- **Filter and search.** Toggle thinking, tool calls, results, images, and system noise. Live full-text search with a match count.
 - **Collapsible detail.** Long output, reasoning, and large tool inputs collapse by default. Expand all / collapse all in one click.
 - **Clickable paths and links.** File paths open in the editor; links open in your browser.
-- **Live updating.** If you open the log of a session that is still running, the view refreshes as the file grows.
+- **Live updating.** Open the log of a session that is still running and the view refreshes as the file grows.
 - **Theme-aware.** Uses your current VS Code colour theme.
 
 ## Usage
 
-Open any `.jsonl` Claude session in one of these ways:
+Open any supported `.json` or `.jsonl` file in one of these ways:
 
-- Right-click the file in the Explorer and choose **Claude Session: Open as Readable Transcript**.
-- With the file open, run the same command from the Command Palette, or click the book icon in the editor title bar.
-- Right-click the editor tab and choose **Reopen Editor With...** then **Claude Session Transcript**.
+- Right-click the file in the Explorer and choose **Chat Viewer: Open as Readable Transcript**.
+- With the file open, run the same command from the Command Palette, or click the icon in the editor title bar.
+- Right-click the editor tab and choose **Reopen Editor With...** then **Chat Transcript**.
 
-To get back to the raw JSON, use **Claude Session: Reopen as Raw JSONL** (the `{}` icon in the title bar), or **Reopen Editor With... > Text Editor**.
+To get back to the raw JSON, use **Chat Viewer: Reopen as Raw JSON**, or **Reopen Editor With... > Text Editor**.
 
-The custom editor is registered with `option` priority, so it never hijacks `.jsonl` files you open for other reasons. You always choose when to use it.
+The custom editor is registered at `option` priority, so it never hijacks `.json`/`.jsonl` files you open for other reasons. You always choose when to use it.
 
 ## Install
 
@@ -37,32 +50,36 @@ npm install
 npm run compile
 ```
 
-Then press `F5` in VS Code to launch an Extension Development Host with the extension loaded, and open a `.jsonl` session there.
+Press `F5` in VS Code to launch an Extension Development Host with the extension loaded, then open a chat log.
 
 ### Package and install locally
 
 ```bash
 npm install
 npx @vscode/vsce package
-code --install-extension claude-session-viewer-0.1.0.vsix
+code --install-extension json-chat-viewer-0.2.0.vsix
 ```
-
-(`vsce` is only needed for packaging; it is fetched on demand by `npx`.)
 
 ## How it works
 
-`src/parser.ts` is a dependency-free parser that reads the JSONL line by line and flattens it into an ordered list of render events, tolerating malformed lines, missing fields, and every record type Claude Code emits (`user`, `assistant`, `system`, `attachment`, `mode`, `ai-title`, `queue-operation`, and more). It also separates genuine human prompts from the synthetic `user` records that carry tool results, so the transcript reads the way the conversation actually happened.
-
-`media/main.js` renders that model in the webview, including a small self-contained Markdown renderer (no runtime dependencies). All message content is HTML-escaped before rendering, and only `http(s)` and `mailto` links are ever followed, so opening an untrusted session log is safe.
-
-## Layout
+The architecture is a strict split between **parsing** and **rendering**, which is what makes it format-agnostic:
 
 ```
-src/extension.ts   Custom editor provider, commands, live reload, link handling
-src/parser.ts      JSONL -> transcript model (pure, testable, no vscode import)
-media/style.css    Theme-aware styles
-media/main.js      Webview renderer + mini Markdown engine
+src/types.ts        The shared, platform-neutral Transcript model
+src/parsers/        One module per format: detect() + parse() -> Transcript[]
+  index.ts          Registry: sniffs the file, runs detectors, returns a bundle
+  claudeCode.ts     Claude Code .jsonl
+  chatgptExport.ts  ChatGPT conversations.json (tree walk)
+  claudeExport.ts   Claude.ai conversations.json
+  openaiApi.ts      OpenAI / Anthropic API logs + fine-tune JSONL
+src/extension.ts    Custom editor, commands, live reload, link handling
+media/main.js       Webview renderer + self-contained Markdown engine
+media/style.css     Theme-aware styling
 ```
+
+Every parser maps its source onto the same `Transcript` model, so the renderer never needs to know which platform a log came from. Adding a new platform is one new parser module plus one line in the registry.
+
+All message content is HTML-escaped before rendering, and only `http(s)` / `mailto` links are ever followed, so opening an untrusted log is safe.
 
 ## Licence
 
