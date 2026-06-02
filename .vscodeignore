@@ -1,8 +1,12 @@
 .vscode/**
+.github/**
 src/**
 **/*.ts
 **/*.map
 tsconfig.json
 .gitignore
+.vscodeignore
 node_modules/**
+assets/candidates/**
+*.vsix
 **/.DS_Store

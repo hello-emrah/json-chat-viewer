@@ -1,10 +1,25 @@
-# JSON Chat Viewer
+<p align="center">
+  <img src="assets/logo.png" alt="JSON Chat Viewer" width="200" />
+</p>
 
-[![Latest release](https://img.shields.io/github/v/release/hello-emrah/json-chat-viewer?label=download)](https://github.com/hello-emrah/json-chat-viewer/releases/latest)
-[![Build](https://github.com/hello-emrah/json-chat-viewer/actions/workflows/ci.yml/badge.svg)](https://github.com/hello-emrah/json-chat-viewer/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+<h1 align="center">JSON Chat Viewer</h1>
 
-A VS Code extension that turns raw LLM chat logs into a clean, readable transcript. One renderer, many formats: Claude Code sessions, ChatGPT and Claude.ai data exports, and raw OpenAI / Anthropic API logs all open as a proper conversation instead of a wall of JSON.
+<p align="center">
+  Read LLM chat logs as a clean transcript, right in VS Code.<br/>
+  Claude Code sessions, ChatGPT &amp; Claude.ai exports, raw OpenAI / Anthropic API logs.<br/>
+  <strong>One renderer, every format. No wall of JSON.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/hello-emrah/json-chat-viewer/releases/latest"><img src="https://img.shields.io/github/v/release/hello-emrah/json-chat-viewer?label=download&style=for-the-badge&color=c46b44" alt="Download" /></a>
+  <a href="https://github.com/hello-emrah/json-chat-viewer/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/hello-emrah/json-chat-viewer/ci.yml?style=for-the-badge&color=c46b44&label=build" alt="Build" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-c46b44?style=for-the-badge" alt="MIT" /></a>
+  <a href="https://buymeacoffee.com/hello_emrah"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-c46b44?logo=buymeacoffee&logoColor=ffffff&style=for-the-badge" alt="Buy Me a Coffee" /></a>
+</p>
+
+---
+
+Turns raw LLM chat logs into a readable conversation instead of a wall of JSON. Built for personal use, shared openly.
 
 > **Install in 30 seconds:** grab the latest `.vsix` from the **[Releases page](https://github.com/hello-emrah/json-chat-viewer/releases/latest)**, then in VS Code: Extensions view → `…` menu → **Install from VSIX…**. Full steps [below](#install).
 
