@@ -61,16 +61,12 @@ body {
 .convo-picker select:focus { outline: 1px solid var(--vscode-focusBorder); }
 .meta-line { margin-top: 8px; font-size: 0.82em; opacity: 0.75; display: flex; flex-wrap: wrap; gap: 6px 14px; }
 .meta-line code { background: var(--vscode-textCodeBlock-background); padding: 1px 6px; border-radius: 4px; font-size: 0.95em; }
-.pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.pill {
-  font-size: 0.78em;
-  padding: 3px 10px;
-  border-radius: 99px;
-  background: var(--vscode-badge-background, rgba(128,128,128,0.18));
-  color: var(--vscode-badge-foreground, inherit);
-  white-space: nowrap;
-}
-.pill b { font-weight: 700; }
+/* Passive stat readout (deliberately not button-like) */
+.stats { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 0; margin-top: 12px; font-size: 0.82em; }
+.stat { color: var(--vscode-descriptionForeground, rgba(170,170,170,0.85)); white-space: nowrap; cursor: default; }
+.stat b { color: var(--vscode-foreground); font-weight: 700; }
+.stat:not(:last-child)::after { content: "·"; margin: 0 10px; opacity: 0.3; }
+.stat.error b { color: var(--accent-system); }
 
 /* ---------- Toolbar ---------- */
 .toolbar {
@@ -98,18 +94,67 @@ body {
   font-size: 0.9em;
 }
 .search:focus { outline: 1px solid var(--vscode-focusBorder); }
-.toggle {
-  font-size: 0.78em;
-  padding: 4px 10px;
+/* Clear, clickable controls */
+.btn, .filter-btn {
+  font-size: 0.8em;
+  padding: 5px 11px;
   border-radius: 6px;
-  border: 1px solid var(--vscode-button-border, transparent);
-  background: var(--vscode-button-secondaryBackground, rgba(128,128,128,0.16));
+  border: 1px solid var(--vscode-button-border, var(--vscode-contrastBorder, rgba(128,128,128,0.45)));
+  background: var(--vscode-button-secondaryBackground, rgba(128,128,128,0.18));
   color: var(--vscode-button-secondaryForeground, inherit);
   cursor: pointer;
   user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
 }
-.toggle:hover { background: var(--vscode-button-secondaryHoverBackground, rgba(128,128,128,0.28)); }
-.toggle.off { opacity: 0.42; text-decoration: line-through; }
+.btn:hover, .filter-btn:hover { background: var(--vscode-button-secondaryHoverBackground, rgba(128,128,128,0.3)); }
+.filter-btn .caret { font-size: 0.85em; opacity: 0.7; }
+.filter-btn .filter-count {
+  font-weight: 700;
+  font-size: 0.92em;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: var(--accent-tool);
+  color: #fff;
+}
+
+/* Filter dropdown */
+.filter { position: relative; }
+.filter-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  z-index: 30;
+  min-width: 190px;
+  padding: 6px;
+  border-radius: 8px;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border, rgba(128,128,128,0.4)));
+  box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+}
+.filter.open .filter-menu { display: block; }
+.filter-menu .menu-head {
+  font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.06em;
+  opacity: 0.55; padding: 4px 8px 6px;
+}
+.filter-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.86em;
+  user-select: none;
+  white-space: nowrap;
+}
+.filter-item:hover { background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.16)); }
+.filter-item input { accent-color: var(--accent-tool); margin: 0; cursor: pointer; }
+.filter-item .swatch { width: 8px; height: 8px; border-radius: 2px; margin-left: auto; }
+
 .toolbar .sep { flex-basis: 100%; height: 0; }
 .toolbar .right { margin-left: auto; display: flex; gap: 8px; }
 .count-note { font-size: 0.75em; opacity: 0.6; padding-left: 4px; }
