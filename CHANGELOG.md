@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.1
+
+- Fixed a **blank transcript** when a log carried a non-string attachment payload (e.g. a nested memory/context object). One bad attachment no longer stops the whole body from rendering; the render primitives now coerce any value to text.
+- Fixed the **prompt count** for Claude Code sessions. Tool results are recorded as `user` turns, so they were being counted as prompts; the header now counts only real prompts.
+
+## 0.3.0
+
+- Files with many conversations (Claude.ai and ChatGPT exports) now open with a **searchable chat list** down the side instead of a cramped dropdown. Type to filter by title or date.
+- **Every conversation is listed**, including ones the export returned with no body. Those are flagged "empty in export" rather than silently dropped, so the count matches what's actually in your account. (Claude.ai exports routinely return blank shells for some chats; that is an export-side quirk, not a missing chat.)
+- Conversations now **load on demand**, so large exports (tens of MB, hundreds of chats) open fast instead of shipping everything up front.
+- Your **filter choices are remembered** across files and window reloads.
+
 ## 0.2.3
 
 - Whole header (title, stats, toolbar) now stays pinned while you scroll, not just the search row.
