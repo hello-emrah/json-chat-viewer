@@ -21,7 +21,69 @@ body {
   line-height: 1.55;
 }
 
-#app { max-width: 980px; margin: 0 auto; padding: 0 18px 120px; }
+#app { padding: 0; }
+
+/* ---------- Two-pane layout (chat list + transcript) ---------- */
+.layout { display: flex; align-items: flex-start; gap: 0; }
+.main-pane { flex: 1 1 auto; min-width: 0; max-width: 980px; margin: 0 auto; padding: 0 18px 120px; }
+
+.convo-list {
+  position: sticky;
+  top: 0;
+  flex: 0 0 290px;
+  width: 290px;
+  height: 100vh;
+  overflow-y: auto;
+  border-right: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.3));
+  background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+}
+.convo-list-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 12px 12px 9px;
+  background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.25));
+}
+.convo-search {
+  width: 100%;
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.4));
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-family: inherit;
+  font-size: 0.85em;
+}
+.convo-search:focus { outline: 1px solid var(--vscode-focusBorder); }
+.convo-list-count { font-size: 0.72em; opacity: 0.55; margin-top: 7px; letter-spacing: 0.02em; }
+.convo-items { padding: 6px; }
+.convo-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-left: 2px solid transparent;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 1px 0;
+  cursor: pointer;
+  color: var(--vscode-foreground);
+  font-family: inherit;
+}
+.convo-item:hover { background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.14)); }
+.convo-item.active {
+  background: var(--vscode-list-activeSelectionBackground, rgba(74,158,255,0.22));
+  border-left-color: var(--accent-user);
+}
+.ci-title { font-size: 0.9em; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ci-sub { display: flex; gap: 8px; font-size: 0.74em; opacity: 0.7; margin-top: 2px; white-space: nowrap; }
+.ci-date { flex: 0 0 auto; }
+.ci-meta { overflow: hidden; text-overflow: ellipsis; }
+.convo-item.empty .ci-title { opacity: 0.6; font-weight: 500; font-style: italic; }
+.ci-empty { color: var(--accent-system); opacity: 0.95; }
+.convo-position { font-size: 0.75em; opacity: 0.5; margin-top: 5px; }
 
 .loading { padding: 48px; text-align: center; opacity: 0.6; }
 

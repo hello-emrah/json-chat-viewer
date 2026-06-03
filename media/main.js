@@ -3,10 +3,17 @@
   const vscode = acquireVsCodeApi();
   const app = document.getElementById("app");
 
-  let bundle = null;
-  let transcript = null;
-  let selectedIdx = 0;
+  // Light index of every conversation in the file (meta only, no events).
+  // A conversation's events are fetched from the host on demand and cached.
+  let indexData = null;        // { format, formatLabel, conversations: [{ meta, eventCount }] }
+  let bundleFormat = "";
   let fileName = "";
+  let selectedIdx = 0;
+  let currentEvents = null;    // events for selectedIdx; null = loading, [] = none
+  const eventCache = new Map();
+  const listItemNodes = [];
+  let mainPane = null;
+
   const filters = { thinking: true, tools: true, results: true, system: true, images: true };
 
   // ---------- utilities ----------
@@ -39,6 +46,12 @@
     if (isNaN(d.getTime())) return "";
     return d.toLocaleDateString([], { weekday: "short", year: "numeric", month: "short", day: "numeric" });
   }
+  function fmtDateShort(ts) {
+    if (!ts) return "";
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
+  }
   function fmtDuration(ms) {
     if (!ms || ms < 0) return "";
     const s = Math.round(ms / 1000);
@@ -56,12 +69,13 @@
 
   // ---------- mini markdown ----------
   function codeBlock(lang, code) {
+    code = typeof code === "string" ? code : code == null ? "" : JSON.stringify(code, null, 2);
     const l = lang ? `<div class="code-lang">${esc(lang)}</div>` : "";
     return `${l}<pre class="code"><code>${esc(code.replace(/\n$/, ""))}</code></pre>`;
   }
   function inlineMd(text) {
     const toks = [];
-    const T = (h) => "" + (toks.push(h) - 1) + "";
+    const T = (h) => "" + (toks.push(h) - 1) + "";
     // inline code first
     text = text.replace(/`([^`]+)`/g, (_m, c) => T(`<code>${esc(c)}</code>`));
     // links [text](url) — only allow safe schemes, else keep the text unlinked
@@ -78,7 +92,7 @@
       .replace(/~~([^~]+)~~/g, "<del>$1</del>");
     // bare urls
     text = text.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, (_m, p, u) => `${p}<a data-href="${u}">${u}</a>`);
-    text = text.replace(/(\d+)/g, (_m, i) => toks[+i]);
+    text = text.replace(/(\d+)/g, (_m, i) => toks[+i]);
     return text;
   }
   function splitRow(line) {
@@ -91,20 +105,20 @@
       /^\s*>\s?/.test(line) ||
       /^\s*([-*+]|\d+\.)\s+/.test(line) ||
       /^\s*([-*_])(\s*\1){2,}\s*$/.test(line) ||
-      /^\d+$/.test(line)
+      /^\d+$/.test(line)
     );
   }
   function renderMd(src) {
     if (!src) return "";
     const fences = [];
     src = src.replace(/```([^\n]*)\n([\s\S]*?)```/g, (_m, lang, code) => {
-      return "" + (fences.push({ lang: (lang || "").trim(), code }) - 1) + "";
+      return "" + (fences.push({ lang: (lang || "").trim(), code }) - 1) + "";
     });
     const lines = src.replace(/\r/g, "").split("\n");
     let html = "", i = 0;
     while (i < lines.length) {
       const line = lines[i];
-      const fm = line.match(/^(\d+)$/);
+      const fm = line.match(/^(\d+)$/);
       if (fm) { const f = fences[+fm[1]]; html += codeBlock(f.lang, f.code); i++; continue; }
       if (/^\s*$/.test(line)) { i++; continue; }
       if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { html += "<hr/>"; i++; continue; }
@@ -152,7 +166,8 @@
     return `<span class="path" data-path="${esc(p)}">${esc(p)}</span>`;
   }
   function clampPre(text, lang) {
-    const lines = String(text).split("\n");
+    text = typeof text === "string" ? text : text == null ? "" : JSON.stringify(text, null, 2);
+    const lines = text.split("\n");
     const LIMIT = 36;
     if (lines.length <= LIMIT && text.length <= 4000) return codeBlock(lang, text);
     const head = lines.slice(0, LIMIT).join("\n");
@@ -243,7 +258,7 @@
 
   // ---------- event rendering ----------
   function assistantName() {
-    const f = bundle && bundle.format;
+    const f = bundleFormat;
     if (f === "chatgpt-export") return "ChatGPT";
     if (f === "claude-code" || f === "claude-export") return "Claude";
     return "Assistant";
@@ -353,64 +368,111 @@
     return wrap;
   }
 
+  // ---------- conversation list (sidebar) ----------
+  function convoSubtitle(entry) {
+    const m = entry.meta;
+    const date = fmtDateShort(m.lastTimestamp || m.firstTimestamp);
+    if (entry.eventCount === 0) {
+      const n = m.messageCount || 0;
+      return { date, meta: n ? `${n} messages, blank in export` : "empty in export", empty: true };
+    }
+    const c = m.counts || {};
+    const bits = [];
+    if (c.user) bits.push(`${c.user} prompt${c.user === 1 ? "" : "s"}`);
+    if (c.assistant) bits.push(`${c.assistant} repl${c.assistant === 1 ? "y" : "ies"}`);
+    if (!bits.length && m.messageCount) bits.push(`${m.messageCount} messages`);
+    return { date, meta: bits.join(" · "), empty: false };
+  }
+
+  function buildSidebar() {
+    const list = indexData.conversations;
+    const aside = el("aside", "convo-list");
+
+    const head = el("div", "convo-list-head");
+    const search = el("input", "convo-search");
+    search.type = "search";
+    search.placeholder = `Search ${list.length} chats…`;
+    const count = el("div", "convo-list-count");
+    const setCount = (shown) => {
+      count.textContent = shown === list.length ? `${list.length} chats` : `${shown} of ${list.length} chats`;
+    };
+    setCount(list.length);
+    search.addEventListener("input", () => {
+      const q = search.value.trim().toLowerCase();
+      let shown = 0;
+      listItemNodes.forEach((node) => {
+        const hit = !q || node.dataset.search.includes(q);
+        node.classList.toggle("hidden", !hit);
+        if (hit) shown++;
+      });
+      setCount(shown);
+    });
+    head.appendChild(search);
+    head.appendChild(count);
+    aside.appendChild(head);
+
+    const items = el("div", "convo-items");
+    listItemNodes.length = 0;
+    list.forEach((entry, i) => {
+      const title = entry.meta.title || "Untitled";
+      const sub = convoSubtitle(entry);
+      const item = el("button", "convo-item" + (sub.empty ? " empty" : ""));
+      item.dataset.i = String(i);
+      item.dataset.search = (title + " " + sub.date).toLowerCase();
+      item.innerHTML =
+        `<div class="ci-title">${esc(title)}</div>` +
+        `<div class="ci-sub">` +
+          (sub.date ? `<span class="ci-date">${esc(sub.date)}</span>` : "") +
+          (sub.meta ? `<span class="ci-meta${sub.empty ? " ci-empty" : ""}">${esc(sub.meta)}</span>` : "") +
+        `</div>`;
+      item.addEventListener("click", () => selectConversation(i, true));
+      items.appendChild(item);
+      listItemNodes.push(item);
+    });
+    aside.appendChild(items);
+    return aside;
+  }
+
+  function markActiveItem() {
+    listItemNodes.forEach((n) => n.classList.toggle("active", +n.dataset.i === selectedIdx));
+  }
+
   // ---------- header + toolbar ----------
-  function renderHeader(meta) {
+  function renderHeader(entry) {
+    const meta = entry.meta;
     const h = el("div", "header");
-    const title = meta.title || (bundle && bundle.formatLabel) || "Conversation";
+    const title = meta.title || (indexData && indexData.formatLabel) || "Conversation";
     let metaBits = [];
-    if (bundle && bundle.formatLabel) metaBits.push(`<span class="fmt-badge">${esc(bundle.formatLabel)}</span>`);
+    if (indexData && indexData.formatLabel) metaBits.push(`<span class="fmt-badge">${esc(indexData.formatLabel)}</span>`);
     if (meta.cwd) metaBits.push(`📁 <code>${esc(meta.cwd)}</code>`);
     if (meta.gitBranch) metaBits.push(`⎇ ${esc(meta.gitBranch)}`);
-    if (meta.models.length) metaBits.push(`✦ ${esc(meta.models.join(", "))}`);
+    if (meta.models && meta.models.length) metaBits.push(`✦ ${esc(meta.models.join(", "))}`);
     if (meta.version) metaBits.push(`v${esc(meta.version)}`);
     if (meta.firstTimestamp) metaBits.push(esc(fmtDate(meta.firstTimestamp)));
 
-    // Count from the rendered events so the numbers match what's on screen.
-    const ec = { prompts: 0, replies: 0, tools: 0, images: 0 };
-    for (const ev of transcript.events) {
-      if (ev.kind === "user" && ev.flavor === "human") ec.prompts++;
-      else if (ev.kind === "assistant") ec.replies++;
-      else if (ev.kind === "tool_call") ec.tools++;
-      else if (ev.kind === "image") ec.images++;
-      else if (ev.kind === "tool_result") ec.images += ev.images.length;
-    }
-    const c = meta.counts, tk = meta.tokens;
+    // Counts come straight from meta (computed at parse time), so they're
+    // available without shipping the conversation's events to the list.
+    const c = meta.counts || {}, tk = meta.tokens || { input: 0, output: 0, cacheRead: 0, cacheCreate: 0 };
     const stats = [];
-    stats.push(`<span class="stat"><b>${ec.prompts}</b> prompts</span>`);
-    stats.push(`<span class="stat"><b>${ec.replies}</b> replies</span>`);
-    stats.push(`<span class="stat"><b>${ec.tools}</b> tool calls</span>`);
-    if (ec.images) stats.push(`<span class="stat"><b>${ec.images}</b> images</span>`);
+    stats.push(`<span class="stat"><b>${c.user || 0}</b> prompts</span>`);
+    stats.push(`<span class="stat"><b>${c.assistant || 0}</b> replies</span>`);
+    stats.push(`<span class="stat"><b>${c.toolCalls || 0}</b> tool calls</span>`);
+    if (c.images) stats.push(`<span class="stat"><b>${c.images}</b> images</span>`);
     if (meta.durationMs) stats.push(`<span class="stat">⏱ <b>${fmtDuration(meta.durationMs)}</b></span>`);
     const totalTok = tk.input + tk.output + tk.cacheRead + tk.cacheCreate;
     if (totalTok) stats.push(`<span class="stat" title="in ${tk.input} · out ${tk.output} · cache read ${tk.cacheRead} · cache write ${tk.cacheCreate}">≈ <b>${fmtNum(totalTok)}</b> tokens</span>`);
     if (c.errors) stats.push(`<span class="stat error"><b>${c.errors}</b> errors</span>`);
     if (meta.parseErrors) stats.push(`<span class="stat" title="lines that failed to parse"><b>${meta.parseErrors}</b> bad lines</span>`);
 
-    // Conversation picker when a file holds more than one (e.g. an export).
-    let picker = "";
-    if (bundle && bundle.conversations.length > 1) {
-      const opts = bundle.conversations.map((c, i) => {
-        const d = c.meta.lastTimestamp ? " — " + fmtDate(c.meta.lastTimestamp) : "";
-        const n = (c.meta.title || `Conversation ${i + 1}`);
-        return `<option value="${i}"${i === selectedIdx ? " selected" : ""}>${esc(n)}${esc(d)}</option>`;
-      }).join("");
-      picker = `<div class="convo-picker"><span>${bundle.conversations.length} conversations</span>` +
-        `<select id="convo-select">${opts}</select></div>`;
-    }
+    const total = indexData ? indexData.conversations.length : 1;
+    const position = total > 1 ? `<div class="convo-position">Conversation ${selectedIdx + 1} of ${total}</div>` : "";
 
     h.innerHTML =
       `<h1>${esc(title)}</h1>` +
       `<div class="filename">${esc(fileName)}</div>` +
-      picker +
+      position +
       `<div class="meta-line">${metaBits.join('<span style="opacity:.4">·</span>')}</div>` +
       `<div class="stats">${stats.join("")}</div>`;
-
-    const sel = h.querySelector("#convo-select");
-    if (sel) sel.addEventListener("change", (e) => {
-      selectedIdx = parseInt(e.target.value, 10) || 0;
-      render();
-      window.scrollTo(0, 0);
-    });
     return h;
   }
 
@@ -421,7 +483,7 @@
     search.placeholder = "Search transcript…";
     search.addEventListener("input", () => applySearch(search.value));
 
-    // Filter dropdown (replaces the old inline toggles)
+    // Filter dropdown
     const defs = [
       ["thinking", "Thinking", "var(--accent-thinking)"],
       ["tools", "Tool calls", "var(--accent-tool)"],
@@ -447,6 +509,7 @@
         filters[key] = cb.checked;
         refreshLabel();
         applyFilters();
+        savePrefs();
       });
       item.appendChild(cb);
       item.appendChild(document.createTextNode(label));
@@ -469,13 +532,11 @@
       b.addEventListener("click", fn);
       return b;
     };
-    // Navigation: jump to top / bottom of the transcript
     right.appendChild(mkBtn(`<span class="gi">↑</span> Top`, "Jump to the start of the transcript",
       () => window.scrollTo({ top: 0, behavior: "smooth" })));
     right.appendChild(mkBtn(`<span class="gi">↓</span> End`, "Jump to the end of the transcript",
       () => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })));
     right.appendChild(el("span", "vsep"));
-    // Expand / collapse the collapsible blocks (reasoning, tool input, long output)
     right.appendChild(mkBtn(`<span class="gi">▾</span> Expand all`,
       "Open every collapsible block — reasoning, tool input and long output", () => setAllDetails(true)));
     right.appendChild(mkBtn(`<span class="gi">▸</span> Collapse all`,
@@ -532,42 +593,92 @@
     node.classList.toggle("hidden", hidden);
   }
 
-  // ---------- main render ----------
-  function render() {
+  function savePrefs() {
+    vscode.postMessage({ type: "savePrefs", prefs: { filters: { ...filters } } });
+  }
+
+  // ---------- render ----------
+  function firstNonEmpty() {
+    if (!indexData) return 0;
+    const i = indexData.conversations.findIndex((c) => c.eventCount > 0);
+    return i >= 0 ? i : 0;
+  }
+
+  // Build the whole shell: sidebar (if multi) + an empty main pane.
+  function renderAll() {
     app.innerHTML = "";
-    if (!bundle || !bundle.conversations.length) { app.appendChild(el("div", "loading", "Parsing…")); return; }
-    if (selectedIdx >= bundle.conversations.length) selectedIdx = 0;
-    transcript = bundle.conversations[selectedIdx];
+    listItemNodes.length = 0;
+    mainPane = null;
+    if (!indexData || !indexData.conversations.length) {
+      app.appendChild(el("div", "loading", "Parsing…"));
+      return;
+    }
+    const layout = el("div", "layout");
+    if (indexData.conversations.length > 1) layout.appendChild(buildSidebar());
+    mainPane = el("main", "main-pane");
+    layout.appendChild(mainPane);
+    app.appendChild(layout);
+    // The main pane is filled by selectConversation(), called right after.
+  }
+
+  // (Re)build only the main pane for the currently selected conversation.
+  function renderMain() {
+    if (!mainPane || !indexData) return;
+    const entry = indexData.conversations[selectedIdx];
+    if (!entry) return;
+    currentQuery = "";
+    mainPane.innerHTML = "";
+
     const top = el("div", "topbar");
-    top.appendChild(renderHeader(transcript.meta));
+    top.appendChild(renderHeader(entry));
     top.appendChild(renderToolbar());
-    app.appendChild(top);
+    mainPane.appendChild(top);
 
     const list = el("div", "events");
-    let lastDate = "";
-    if (!transcript.events.length) {
-      list.appendChild(el("div", "empty-note", "No renderable messages found in this file."));
-    }
-    for (const ev of transcript.events) {
-      if (ev.ts) {
-        const d = fmtDate(ev.ts);
-        if (d && d !== lastDate) {
-          lastDate = d;
-          const div = el("div", "event slim ev-mode");
-          div.dataset.bucket = "always";
-          div.innerHTML = `<div class="role"><span>${esc(d)}</span></div>`;
-          list.appendChild(div);
+    if (entry.eventCount === 0) {
+      list.appendChild(el("div", "empty-note",
+        "This conversation is empty in the export — its messages came back with no text or content.<br/>Nothing was hidden by the viewer; the export itself contains no body for this chat."));
+    } else if (currentEvents === null) {
+      list.appendChild(el("div", "loading", "Loading conversation…"));
+    } else {
+      let lastDate = "";
+      for (const ev of currentEvents) {
+        if (ev.ts) {
+          const d = fmtDate(ev.ts);
+          if (d && d !== lastDate) {
+            lastDate = d;
+            const div = el("div", "event slim ev-mode");
+            div.dataset.bucket = "always";
+            div.innerHTML = `<div class="role"><span>${esc(d)}</span></div>`;
+            list.appendChild(div);
+          }
         }
+        list.appendChild(buildEvent(ev));
       }
-      list.appendChild(buildEvent(ev));
     }
-    app.appendChild(list);
-    applyFilters();
+    mainPane.appendChild(list);
+    if (entry.eventCount > 0 && currentEvents !== null) applyFilters();
+  }
+
+  function selectConversation(i, scrollTop) {
+    if (!indexData || !indexData.conversations[i]) return;
+    selectedIdx = i;
+    markActiveItem();
+    const entry = indexData.conversations[i];
+    if (entry.eventCount === 0) {
+      currentEvents = [];
+    } else if (eventCache.has(i)) {
+      currentEvents = eventCache.get(i);
+    } else {
+      currentEvents = null; // loading
+      vscode.postMessage({ type: "requestConversation", index: i });
+    }
+    renderMain();
+    if (scrollTop) window.scrollTo(0, 0);
   }
 
   // ---------- events ----------
   document.addEventListener("click", (e) => {
-    // close the filter dropdown when clicking outside it
     const openFilter = document.querySelector(".filter.open");
     if (openFilter && !openFilter.contains(e.target)) openFilter.classList.remove("open");
 
@@ -586,11 +697,24 @@
 
   window.addEventListener("message", (e) => {
     const msg = e.data;
-    if (msg.type === "bundle") {
-      bundle = msg.data;
+    if (msg.type === "prefs") {
+      if (msg.data && msg.data.filters) Object.assign(filters, msg.data.filters);
+      if (indexData) renderMain(); // re-apply if we somehow rendered already
+    } else if (msg.type === "index") {
+      indexData = { format: msg.format, formatLabel: msg.formatLabel, conversations: msg.conversations || [] };
+      bundleFormat = msg.format || "";
       fileName = msg.fileName || "";
-      selectedIdx = 0;
-      render();
+      eventCache.clear();
+      currentEvents = null;
+      selectedIdx = firstNonEmpty();
+      renderAll();
+      selectConversation(selectedIdx, false);
+    } else if (msg.type === "conversation") {
+      eventCache.set(msg.index, msg.events || []);
+      if (msg.index === selectedIdx) {
+        currentEvents = msg.events || [];
+        renderMain();
+      }
     } else if (msg.type === "error") {
       app.innerHTML = `<div class="empty-note">Failed to parse: ${esc(msg.message)}</div>`;
     }

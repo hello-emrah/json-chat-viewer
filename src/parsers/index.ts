@@ -58,8 +58,18 @@ export function parseAny(text: string, fileName: string): TranscriptBundle {
   try { conversations = best.p.parse(ctx); } catch (e) {
     return noticeBundle(best.p.id, best.p.label, `Detected ${best.p.label}, but parsing failed: ${String(e)}`);
   }
-  conversations = (conversations || []).filter((c) => c && Array.isArray(c.events) && c.events.length);
+  // Keep every well-formed conversation, including ones with no events. Exports
+  // (Claude.ai / ChatGPT) routinely return blank conversation shells — messages
+  // with empty text and content. Dropping them silently makes the viewer look
+  // like it's "missing chats"; instead we list them and flag them as empty.
+  conversations = (conversations || []).filter((c) => c && Array.isArray(c.events));
   if (!conversations.length) return noticeBundle(best.p.id, best.p.label, `Detected ${best.p.label}, but found no messages.`);
+  // A single empty conversation (e.g. one blank session file) is genuinely
+  // nothing to show — fall back to the notice. Multi-conversation files always
+  // list everything so the count matches what the user expects.
+  if (conversations.length === 1 && conversations[0].events.length === 0) {
+    return noticeBundle(best.p.id, best.p.label, `Detected ${best.p.label}, but found no messages.`);
+  }
 
   return { format: best.p.id, formatLabel: best.p.label, conversations };
 }

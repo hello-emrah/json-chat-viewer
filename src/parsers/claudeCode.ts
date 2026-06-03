@@ -54,17 +54,33 @@ function flattenToolResultContent(content: unknown) {
   return out;
 }
 
+// Coerce any attachment payload to displayable text. Some attachment kinds
+// carry structured (non-string) content — e.g. nested_memory is an object and
+// task_reminder is a list — so a blind passthrough would hand the renderer a
+// non-string and break it.
+function attText(v: unknown): string | undefined {
+  if (typeof v === "string") return v;
+  if (v == null) return undefined;
+  try { return JSON.stringify(v, null, 2); } catch { return String(v); }
+}
+
 function attachmentLabel(att: any): { label: string; text?: string } {
   const type = att?.type || "context";
   switch (type) {
-    case "file": return { label: `file: ${att.displayPath || att.filename || ""}`.trim(), text: att.snippet };
+    case "file": return { label: `file: ${att.displayPath || att.filename || ""}`.trim(), text: attText(att.snippet) };
     case "command_output":
-    case "hook_output": return { label: `hook: ${att.hookName || att.hookEvent || ""}`.trim(), text: att.stdout || att.content };
-    case "selected_lines_in_ide": return { label: `editor selection: ${att.filename || ""}`.trim(), text: att.content };
-    case "todo": return { label: "todo update", text: typeof att.content === "string" ? att.content : undefined };
+    case "hook_output": return { label: `hook: ${att.hookName || att.hookEvent || ""}`.trim(), text: attText(att.stdout || att.content) };
+    case "selected_lines_in_ide": return { label: `editor selection: ${att.filename || ""}`.trim(), text: attText(att.content) };
+    case "todo": return { label: "todo update", text: attText(att.content) };
     case "nested_memory":
-    case "ultramemory": return { label: "memory / context", text: att.content };
-    default: return { label: String(type).replace(/_/g, " "), text: typeof att.content === "string" ? att.content : undefined };
+    case "ultramemory": {
+      // content is typically { path, type, content } — surface the inner text and the path.
+      const c = att.content;
+      const inner = c && typeof c === "object" && typeof c.content === "string" ? c.content : attText(c);
+      const path = c && typeof c === "object" && typeof c.path === "string" ? c.path : "";
+      return { label: path ? `memory / context: ${path}` : "memory / context", text: inner };
+    }
+    default: return { label: String(type).replace(/_/g, " "), text: attText(att.content) };
   }
 }
 
@@ -151,6 +167,24 @@ export function parse(ctx: ParseCtx): Transcript[] {
         break;
       }
       default: if (rec.isApiErrorMessage || rec.error) { counts.errors++; events.push({ kind: "error", text: typeof rec.error === "string" ? rec.error : "error", ts }); } break;
+    }
+  }
+
+  // Recompute display counts from the rendered events so the header reflects
+  // what's actually on screen. In Claude Code logs a tool result comes back as
+  // a "user" record, so the raw record tally would count tool results as
+  // prompts; counting human-flavoured user events instead keeps "prompts" honest.
+  counts.user = counts.assistant = counts.toolCalls = counts.toolResults = counts.thinking = counts.images = counts.errors = 0;
+  for (const ev of events) {
+    switch (ev.kind) {
+      case "user": if (ev.flavor === "human") counts.user++; break;
+      case "assistant": counts.assistant++; break;
+      case "thinking": counts.thinking++; break;
+      case "tool_call": counts.toolCalls++; break;
+      case "tool_result": counts.toolResults++; counts.images += ev.images.length; break;
+      case "image": counts.images++; break;
+      case "system": if (ev.isError) counts.errors++; break;
+      case "error": counts.errors++; break;
     }
   }
 
