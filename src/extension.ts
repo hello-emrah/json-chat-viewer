@@ -1,7 +1,23 @@
 import * as vscode from "vscode";
 import { parseAny } from "./parsers";
+import { TranscriptBundle } from "./types";
 
 const VIEW_TYPE = "jsonChatViewer.transcript";
+
+// Persisted, file-independent view preferences (which event kinds to show).
+// Stored in globalState so the choice carries across every transcript and
+// across window reloads.
+const PREFS_KEY = "jsonChatViewer.prefs";
+interface ViewPrefs {
+  filters: { thinking: boolean; tools: boolean; results: boolean; system: boolean; images: boolean };
+}
+const DEFAULT_PREFS: ViewPrefs = {
+  filters: { thinking: true, tools: true, results: true, system: true, images: true },
+};
+function loadPrefs(context: vscode.ExtensionContext): ViewPrefs {
+  const saved = context.globalState.get<Partial<ViewPrefs>>(PREFS_KEY);
+  return { filters: { ...DEFAULT_PREFS.filters, ...(saved?.filters || {}) } };
+}
 
 export function activate(context: vscode.ExtensionContext) {
   const provider = new TranscriptEditorProvider(context);
@@ -52,11 +68,24 @@ class TranscriptEditorProvider implements vscode.CustomTextEditorProvider {
     };
     webview.html = this.getHtml(webview);
 
-    const post = () => {
+    // Parsed bundle is held here in the host and sliced on demand. Only a light
+    // index (per-conversation meta, no events) is sent up front; a conversation's
+    // events are shipped when the webview asks for them. This keeps the payload
+    // small even for 50MB+ exports that hold hundreds of conversations.
+    let bundle: TranscriptBundle | undefined;
+
+    const sendIndex = () => {
       try {
-        const bundle = parseAny(document.getText(), document.uri.fsPath);
-        webview.postMessage({ type: "bundle", data: bundle, fileName: baseName(document.uri) });
+        bundle = parseAny(document.getText(), document.uri.fsPath);
+        webview.postMessage({
+          type: "index",
+          fileName: baseName(document.uri),
+          format: bundle.format,
+          formatLabel: bundle.formatLabel,
+          conversations: bundle.conversations.map((c) => ({ meta: c.meta, eventCount: c.events.length })),
+        });
       } catch (err) {
+        bundle = undefined;
         webview.postMessage({ type: "error", message: String(err) });
       }
     };
@@ -65,7 +94,7 @@ class TranscriptEditorProvider implements vscode.CustomTextEditorProvider {
     const changeSub = vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.document.uri.toString() !== document.uri.toString()) return;
       if (timer) clearTimeout(timer);
-      timer = setTimeout(post, 200);
+      timer = setTimeout(sendIndex, 200);
     });
 
     const focusSub = webviewPanel.onDidChangeViewState((e) => {
@@ -74,7 +103,13 @@ class TranscriptEditorProvider implements vscode.CustomTextEditorProvider {
 
     const msgSub = webview.onDidReceiveMessage(async (msg) => {
       if (msg?.type === "ready") {
-        post();
+        webview.postMessage({ type: "prefs", data: loadPrefs(this.context) });
+        sendIndex();
+      } else if (msg?.type === "requestConversation" && typeof msg.index === "number") {
+        const convo = bundle?.conversations[msg.index];
+        if (convo) webview.postMessage({ type: "conversation", index: msg.index, events: convo.events });
+      } else if (msg?.type === "savePrefs" && msg.prefs) {
+        await this.context.globalState.update(PREFS_KEY, msg.prefs as ViewPrefs);
       } else if (msg?.type === "openExternal" && typeof msg.url === "string") {
         if (/^(https?:\/\/|mailto:)/i.test(msg.url)) vscode.env.openExternal(vscode.Uri.parse(msg.url));
       } else if (msg?.type === "openFile" && typeof msg.path === "string") {

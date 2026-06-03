@@ -77,6 +77,7 @@ function parseConversation(convo: any): Transcript {
     sessionId: convo.uuid,
     firstTimestamp: toIso(convo.created_at),
     lastTimestamp: toIso(convo.updated_at),
+    messageCount: asArray(convo.chat_messages).length,
   });
 }
 

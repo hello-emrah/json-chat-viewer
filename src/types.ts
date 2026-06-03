@@ -37,6 +37,9 @@ export interface TranscriptMeta {
   tokens: TokenTotals;
   lineCount: number;
   parseErrors: number;
+  // Raw source-message count (e.g. chat_messages.length). Lets the conversation
+  // list say "20 messages, blank in export" for conversations the export emptied.
+  messageCount?: number;
 }
 
 export type TranscriptEvent =

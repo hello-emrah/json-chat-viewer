@@ -73,12 +73,15 @@ function parseConversation(convo: any): Transcript {
   let firstTs: string | undefined, lastTs: string | undefined;
   const models = new Set<string>();
 
-  for (const node of linearise(convo)) {
+  const thread = linearise(convo);
+  let messageCount = 0;
+  for (const node of thread) {
     const msg = node.message;
     if (!msg || typeof msg !== "object") continue;
     const role = msg.author?.role;
     const meta = msg.metadata || {};
     if (meta.is_visually_hidden_from_conversation) continue;
+    messageCount++;
     const { text, isCode } = contentToText(msg.content);
     const ts = toIso(msg.create_time);
     if (ts) { if (!firstTs) firstTs = ts; lastTs = ts; }
@@ -116,6 +119,7 @@ function parseConversation(convo: any): Transcript {
       sessionId: convo.conversation_id || convo.id,
       models: [...models], firstTimestamp: firstTs, lastTimestamp: lastTs, durationMs,
       counts, tokens: { input: 0, output: 0, cacheRead: 0, cacheCreate: 0 }, lineCount: 0, parseErrors: 0,
+      messageCount,
     },
     events,
   };
