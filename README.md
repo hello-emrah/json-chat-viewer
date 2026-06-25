@@ -112,6 +112,16 @@ Every parser maps its source onto the same `Transcript` model, so the renderer n
 
 All message content is HTML-escaped before rendering, and only `http(s)` / `mailto` links are ever followed, so opening an untrusted log is safe.
 
+## Why "JSON Chat Viewer"
+
+Every other tool in this set wears a mythic name and an ancient seal: an oracle, a serpent, a house spirit. This one is named for exactly what it does. It views JSON chat logs. No metaphor, no etymology, just the plain description, because now and then the honest name is the better one and the tool is the whole story.
+
+## Design philosophy
+
+The visual mark and the tool itself were built deliberately against the visual language of capitalist software design. No gradients, no neon, no glass, no drop shadows, no isometric stock illustration. Single-shade flat seals in warm, considered colours, ancient-glyph silhouettes, generous whitespace. The mark could be pressed into wax or carved into stone.
+
+This tool is built for personal use and shared openly. It is not productised, monetised, or instrumented. Use it for your own work or fork it for yours.
+
 ## License
 
 MIT
